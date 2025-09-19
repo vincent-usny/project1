@@ -1,0 +1,91 @@
+---
+title: "Project1"
+author: "Haoming Chen"
+date: "2025-09-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(stringr)
+```
+
+## Introduction
+This project analyzes chess tournament results from a text file. The goal is to extract relevant player information, including names, states, total points, and pre-tournament ratings and calculate the average pre-rating of each player’s opponents.  The data is later compiled into a clean csv file for future analysis or database import.  
+
+# Extract player names
+
+```{r player_names}
+lines <- readLines('https://raw.githubusercontent.com/vincent-usny/project1/refs/heads/main/project1.txt', warn = FALSE)
+data <- lines[-c(1:4)] #remove first 4 lines
+
+#get player names
+players_lines <- data[seq(1, length(data), by = 3)]
+parts_line1 <- strsplit(players_lines, '\\|')
+names <- sapply(parts_line1, function(x) trimws(x[2]))
+```
+
+# Extract player states
+
+```{r states}
+#get states
+state_lines <- data[seq(2, length(data), by = 3)]
+parts_line2 <- strsplit(state_lines, '\\|')
+states <- sapply(parts_line2, function(x) trimws(x[1]))
+```
+
+# Extract each player's total_points and pre-tournament ratings
+
+```{r total_points & pre_rating}
+#get total points
+total_points <- sapply(parts_line1, function(x) trimws(x[3]))
+
+#get pre-rating
+ratings <- sapply(parts_line2, function(x) x[2])
+pre_rating <- as.numeric(sapply(ratings, function(x) {
+  sub(".*R: *(\\d+).*", "\\1", x)
+}))
+```
+
+# Calculate each player's avg_rating of all opponents
+
+```{r avg_opp_rating}
+pair_nums <- sapply(players_lines, function(x) as.numeric(strsplit(x, "\\|")[[1]][1]))
+pre_rating_lookup <- setNames(pre_rating, pair_nums)
+
+avg_opp_rating <- sapply(parts_line1, function(y) {
+  rounds <- y[4:10]
+  opps <-c()
+  for (r in rounds){
+    r <- trimws(r)
+    result <- substr(r,1,1)
+    if (result %in% c('W','L','D')) {
+    opp_num <- as.numeric(strsplit(r, "\\s+")[[1]][2])
+    opps <- c(opps, pre_rating_lookup[opp_num])
+    }
+  }
+  mean(opps)
+})
+
+avg_opp_rating <- round(avg_opp_rating)
+```
+
+# Export csv file
+
+```{r build data frame}
+chess_df <- data.frame(
+  Player = names,
+  State = states,
+  Total_points = total_points,
+  Pre_rating = pre_rating,
+  Avg_opp_rating = avg_opp_rating
+)
+
+head(chess_df)
+write.csv(chess_df, 'chess_tournament.csv', row.names = FALSE)
+```
+
+## Conclusion
+
+The tournament data was successfully extracted and cleaned, creating a new dataset containing players' names, states, total points, pre-tournament ratings, and average ratings of each player's opponents.  The csv file is now available to be imported into MySQL or other data tools.  
